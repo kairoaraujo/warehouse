@@ -224,6 +224,10 @@ def configure(settings=None):
         coercer=int,
         default=21600,  # 6 hours
     )
+    maybe_set(settings, "tuf.root.secret", "TUF_ROOT_SECRET")
+    maybe_set(settings, "tuf.snapshot.secret", "TUF_SNAPSHOT_SECRET")
+    maybe_set(settings, "tuf.targets.secret", "TUF_TARGETS_SECRET")
+    maybe_set(settings, "tuf.timestamp.secret", "TUF_TIMESTAMP_SECRET")
     maybe_set_compound(settings, "files", "backend", "FILES_BACKEND")
     maybe_set_compound(settings, "simple", "backend", "SIMPLE_BACKEND")
     maybe_set_compound(settings, "docs", "backend", "DOCS_BACKEND")
@@ -233,6 +237,7 @@ def configure(settings=None):
     maybe_set_compound(settings, "metrics", "backend", "METRICS_BACKEND")
     maybe_set_compound(settings, "breached_passwords", "backend", "BREACHED_PASSWORDS")
     maybe_set_compound(settings, "malware_check", "backend", "MALWARE_CHECK_BACKEND")
+    maybe_set_compound(settings, "tuf", "backend", "TUF_KEY_BACKEND")
 
     # Configure our ratelimiters
     maybe_set(
@@ -467,6 +472,12 @@ def configure(settings=None):
 
     # Allow the packaging app to register any services it has.
     config.include(".packaging")
+
+    # Register TUF support for package integrity
+    config.include(".tuf")
+
+    # Serve the TUF metadata files.
+    config.add_static_view("tuf", "warehouse:tuf/dist/metadata/")
 
     # Configure redirection support
     config.include(".redirects")

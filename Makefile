@@ -148,6 +148,16 @@ initdb:
 	$(MAKE) reindex
 	docker-compose run web python -m warehouse sponsors populate-db
 
+inittuf:
+	docker-compose run --rm web python -m warehouse \
+		tuf keypair --name root --path /opt/warehouse/src/dev/tuf.root
+	docker-compose run --rm web python -m warehouse \
+		tuf keypair --name snapshot --path /opt/warehouse/src/dev/tuf.snapshot
+	docker-compose run --rm web python -m warehouse \
+		tuf keypair --name targets --path /opt/warehouse/src/dev/tuf.targets
+	docker-compose run --rm web python -m warehouse \
+		tuf keypair --name timestamp --path /opt/warehouse/src/dev/tuf.timestamp
+
 reindex:
 	docker-compose run --rm web python -m warehouse search reindex
 
