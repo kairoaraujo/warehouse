@@ -210,6 +210,7 @@ def app_config(database):
         "docs.backend": "warehouse.packaging.services.LocalDocsStorage",
         "sponsorlogos.backend": "warehouse.admin.services.LocalSponsorLogoStorage",
         "mail.backend": "warehouse.email.services.SMTPEmailSender",
+        "tuf.backend": "warehouse.tuf.services.LocalKeyService",
         "malware_check.backend": (
             "warehouse.malware.services.PrinterMalwareCheckService"
         ),
