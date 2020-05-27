@@ -239,7 +239,8 @@ def configure(settings=None):
     maybe_set_compound(settings, "metrics", "backend", "METRICS_BACKEND")
     maybe_set_compound(settings, "breached_passwords", "backend", "BREACHED_PASSWORDS")
     maybe_set_compound(settings, "malware_check", "backend", "MALWARE_CHECK_BACKEND")
-    maybe_set_compound(settings, "tuf", "backend", "TUF_KEY_BACKEND")
+    maybe_set_compound(settings, "tuf", "key_backend", "TUF_KEY_BACKEND")
+    maybe_set_compound(settings, "tuf", "repo_backend", "TUF_REPO_BACKEND")
 
     # Configure our ratelimiters
     maybe_set(
