@@ -834,8 +834,8 @@ trove-classifiers==2020.5.21 \
     --hash=sha256:0691bb836dc141704b1605ffe6a9dba80e7479c0792dbc476454c9aaaa5b980e \
     --hash=sha256:06ddeca19f61c6b06451056b53ceab346ed308b231c33acebf07503f77f0a810 \
     # via -r requirements/main.in
-https://github.com/theupdateframework/tuf/archive/5d16f91ca7251d573106307f8269db1f680f77a4.zip \
-    --hash=sha256:f64b2752d37be84a7138a8ab37bd7bfe418b15d5d79a7ac6d7d9ed3974a14e1a \
+https://github.com/theupdateframework/tuf/archive/00e15c4714f33dedd9cb5cc5602e12a94261c254.zip \
+    --hash=sha256:6cb5fccd9da807fdf19da5f63dc05f95f0904ab3c55c68aa9bc6dab37371ca37 \
     # via -r requirements/main.in
 typeguard==2.7.1 \
     --hash=sha256:1d3710251d3d3d6c64e0c49f45edec2e88ddc386a51e89c3ec0703efeb8b3b81 \
