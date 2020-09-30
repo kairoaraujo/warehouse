@@ -781,14 +781,16 @@ redis==3.5.2 \
     # via -r requirements/main.in, celery-redbeat
 repoze.sendmail==4.4.1 \
     --hash=sha256:7a8ea37914a5d38bad38052a83eac1d867b171ff4cc8b4d4994e892c05b0d424 \
-    --hash=sha256:f1396893d3aa43502624e88941a441233c06679ae50b1966ffbfccba05da6347
-requests-aws4auth==0.9 \
-    --hash=sha256:c9973af472d6d358ee301f077608361e078642aa019785139b588d526f50a23c \
-    --hash=sha256:e20e4941ccd5706973068f9214d40cb2e669461536b3a57b9ac824ae87744c2c
-requests==2.23.0 \
-    --hash=sha256:43999036bfa82904b6af1d99e4882b560e5e2c68e5c4b0aa03b655f3d7d73fee \
-    --hash=sha256:b3f43d496c6daba4493e7c431722aeb7dbc6288f52a6e04e7b6023b0247817e6 \
-    # via -r requirements/main.in, datadog, google-api-core, premailer, requests-aws4auth, tuf
+    --hash=sha256:f1396893d3aa43502624e88941a441233c06679ae50b1966ffbfccba05da6347 \
+    # via pyramid-mailer
+requests-aws4auth==1.0.1 \
+    --hash=sha256:6ddc92476c0ebab6c90709966e0ff3b2f16ba1f296b7ea8573645bbbe5ef9444 \
+    --hash=sha256:9a4a5f4a61c49f098f5f669410308ac5b0ea2682fd511ee3a4f9ff73b5bb275a \
+    # via -r requirements/main.in
+requests==2.24.0 \
+    --hash=sha256:b3559a131db72c33ee969480840fff4bb6dd111de7dd27c8ee1f820f4f00231b \
+    --hash=sha256:fe75cc94a9443b9246fc7049224f75604b113c36acb93f87b80ed42c44cbb898 \
+    # via -r requirements/main.in, datadog, google-api-core, google-cloud-storage, premailer, requests-aws4auth, tuf
 rfc3986==1.4.0 \
     --hash=sha256:112398da31a3344dc25dbf477d8df6cb34f9278a94fee2625d89e4514be8bb9d \
     --hash=sha256:af9147e9aceda37c91a05f4deb128d4b4b49d6b199775fd2d2927768abdc8f50 \
@@ -800,17 +802,54 @@ s3transfer==0.3.3 \
     --hash=sha256:2482b4259524933a022d59da830f51bd746db62f047d6eb213f2f8855dcb8a13 \
     --hash=sha256:921a37e2aefc64145e7b73d50c71bb4f26f46e4c9f414dc648c6245ff92cf7db \
     # via boto3
-securesystemslib==0.15.0 \
-    --hash=sha256:456459fa16893869b2a23444179f742e774bdbf24ec1156549cca03cb338dd13 \
-    --hash=sha256:faf04a10682c34f589fde12cb27ce51ba61768a6f9c2455bab99332b8e90d180 \
+securesystemslib==0.16.0 \
+    --hash=sha256:3c3b44140a6729ed014dc0591d803848fc4fc95652300db6467d45c5ff11ba5c \
+    --hash=sha256:72b72d2c86668d4cfdd8f5c73c84121cff7c93d9bc3eaddb652425c9c091f675 \
     # via tuf
 six==1.15.0 \
     --hash=sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259 \
     --hash=sha256:8b74bedcbbbaca38ff6d7491d76f2b06b3592611af620f8426e82dddb04a5ced \
     # via argon2-cffi, automat, bcrypt, bleach, cryptography, elasticsearch-dsl, google-api-core, google-auth, google-cloud-bigquery, google-resumable-media, html5lib, limits, packaging, protobuf, pymacaroons, pynacl, pyopenssl, python-dateutil, readme-renderer, securesystemslib, structlog, tenacity, tuf, webauthn
-sqlalchemy-citext==1.6.3 \
-    --hash=sha256:1d66e7d49826fec28a9ce69053fdf82d3a5ff397968c5bf38a0d83dcb4bf2303 \
-    --hash=sha256:f73aa6aa36a4bdcdd584e590bd69560dc1eb63455e35f50f78bdf7ebb0a8d3fd \
+sqlalchemy-citext==1.7.0 \
+    --hash=sha256:69ba00f5505f92a1455a94eefc6d3fcf72dda3691ab5398a0b4d0d8d85bd6aab \
+    # via -r requirements/main.in
+sqlalchemy==1.3.19 \
+    --hash=sha256:072766c3bd09294d716b2d114d46ffc5ccf8ea0b714a4e1c48253014b771c6bb \
+    --hash=sha256:107d4af989831d7b091e382d192955679ec07a9209996bf8090f1f539ffc5804 \
+    --hash=sha256:15c0bcd3c14f4086701c33a9e87e2c7ceb3bcb4a246cd88ec54a49cf2a5bd1a6 \
+    --hash=sha256:26c5ca9d09f0e21b8671a32f7d83caad5be1f6ff45eef5ec2f6fd0db85fc5dc0 \
+    --hash=sha256:276936d41111a501cf4a1a0543e25449108d87e9f8c94714f7660eaea89ae5fe \
+    --hash=sha256:3292a28344922415f939ee7f4fc0c186f3d5a0bf02192ceabd4f1129d71b08de \
+    --hash=sha256:33d29ae8f1dc7c75b191bb6833f55a19c932514b9b5ce8c3ab9bc3047da5db36 \
+    --hash=sha256:3bba2e9fbedb0511769780fe1d63007081008c5c2d7d715e91858c94dbaa260e \
+    --hash=sha256:465c999ef30b1c7525f81330184121521418a67189053bcf585824d833c05b66 \
+    --hash=sha256:51064ee7938526bab92acd049d41a1dc797422256086b39c08bafeffb9d304c6 \
+    --hash=sha256:5a49e8473b1ab1228302ed27365ea0fadd4bf44bc0f9e73fe38e10fdd3d6b4fc \
+    --hash=sha256:618db68745682f64cedc96ca93707805d1f3a031747b5a0d8e150cfd5055ae4d \
+    --hash=sha256:6547b27698b5b3bbfc5210233bd9523de849b2bb8a0329cd754c9308fc8a05ce \
+    --hash=sha256:6557af9e0d23f46b8cd56f8af08eaac72d2e3c632ac8d5cf4e20215a8dca7cea \
+    --hash=sha256:73a40d4fcd35fdedce07b5885905753d5d4edf413fbe53544dd871f27d48bd4f \
+    --hash=sha256:8280f9dae4adb5889ce0bb3ec6a541bf05434db5f9ab7673078c00713d148365 \
+    --hash=sha256:83469ad15262402b0e0974e612546bc0b05f379b5aa9072ebf66d0f8fef16bea \
+    --hash=sha256:860d0fe234922fd5552b7f807fbb039e3e7ca58c18c8d38aa0d0a95ddf4f6c23 \
+    --hash=sha256:883c9fb62cebd1e7126dd683222b3b919657590c3e2db33bdc50ebbad53e0338 \
+    --hash=sha256:8afcb6f4064d234a43fea108859942d9795c4060ed0fbd9082b0f280181a15c1 \
+    --hash=sha256:96f51489ac187f4bab588cf51f9ff2d40b6d170ac9a4270ffaed535c8404256b \
+    --hash=sha256:9e865835e36dfbb1873b65e722ea627c096c11b05f796831e3a9b542926e979e \
+    --hash=sha256:aa0554495fe06172b550098909be8db79b5accdf6ffb59611900bea345df5eba \
+    --hash=sha256:b595e71c51657f9ee3235db8b53d0b57c09eee74dfb5b77edff0e46d2218dc02 \
+    --hash=sha256:b6ff91356354b7ff3bd208adcf875056d3d886ed7cef90c571aef2ab8a554b12 \
+    --hash=sha256:b70bad2f1a5bd3460746c3fb3ab69e4e0eb5f59d977a23f9b66e5bdc74d97b86 \
+    --hash=sha256:c7adb1f69a80573698c2def5ead584138ca00fff4ad9785a4b0b2bf927ba308d \
+    --hash=sha256:c898b3ebcc9eae7b36bd0b4bbbafce2d8076680f6868bcbacee2d39a7a9726a7 \
+    --hash=sha256:e49947d583fe4d29af528677e4f0aa21f5e535ca2ae69c48270ebebd0d8843c0 \
+    --hash=sha256:eb1d71643e4154398b02e88a42fc8b29db8c44ce4134cf0f4474bfc5cb5d4dac \
+    --hash=sha256:f2e8a9c0c8813a468aa659a01af6592f71cd30237ec27c4cc0683f089f90dcfc \
+    --hash=sha256:fe7fe11019fc3e6600819775a7d55abc5446dda07e9795f5954fdbf8a49e1c37 \
+    # via -r requirements/main.in, alembic, paginate-sqlalchemy, sqlalchemy-citext, zope.sqlalchemy
+stdlib-list==0.7.0 \
+    --hash=sha256:0ed79a0badf4f666aad046cde364ccac68ca1438a211ec74b0153e0eb5642a3e \
+    --hash=sha256:66c1c1724a12667cdb35be9f43181c3e6646c194e631efaaa93c1f2c2c7a1f7f \
     # via -r requirements/main.in
 sqlalchemy==1.3.17 \
     --hash=sha256:156a27548ba4e1fed944ff9fcdc150633e61d350d673ae7baaf6c25c04ac1f71 \
@@ -834,8 +873,8 @@ trove-classifiers==2020.5.21 \
     --hash=sha256:0691bb836dc141704b1605ffe6a9dba80e7479c0792dbc476454c9aaaa5b980e \
     --hash=sha256:06ddeca19f61c6b06451056b53ceab346ed308b231c33acebf07503f77f0a810 \
     # via -r requirements/main.in
-https://github.com/theupdateframework/tuf/archive/00e15c4714f33dedd9cb5cc5602e12a94261c254.zip \
-    --hash=sha256:6cb5fccd9da807fdf19da5f63dc05f95f0904ab3c55c68aa9bc6dab37371ca37 \
+https://github.com/theupdateframework/tuf/archive/e06e8e1afc25a6edcce2eb91b5e3c6e726d74bdf.zip \
+    --hash=sha256:0350ca0eae40c0aa2c0a2a53e92d7c2895a6319ddfe76c1e9dd13a0e87bc4204 \
     # via -r requirements/main.in
 typeguard==2.7.1 \
     --hash=sha256:1d3710251d3d3d6c64e0c49f45edec2e88ddc386a51e89c3ec0703efeb8b3b81 \
