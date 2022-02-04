@@ -26,6 +26,7 @@ import pytest
 import requests
 
 from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden
+from pyramid_jinja2 import IJinja2Environment
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from trove_classifiers import classifiers
@@ -37,7 +38,7 @@ from warehouse.admin.flags import AdminFlag, AdminFlagValue
 from warehouse.classifiers.models import Classifier
 from warehouse.forklift import legacy
 from warehouse.metrics import IMetricsService
-from warehouse.packaging.interfaces import IFileStorage
+from warehouse.packaging.interfaces import IFileStorage, ISimpleStorage
 from warehouse.packaging.models import (
     Dependency,
     DependencyKind,
@@ -49,6 +50,7 @@ from warehouse.packaging.models import (
     Role,
 )
 from warehouse.packaging.tasks import update_bigquery_release_files
+from warehouse.packaging.utils import _simple_detail
 
 from ...common.db.accounts import EmailFactory, UserFactory
 from ...common.db.classifiers import ClassifierFactory
@@ -1359,10 +1361,14 @@ class TestFileUpload:
         has_signature,
         digests,
         metrics,
+        jinja,
     ):
         monkeypatch.setattr(tempfile, "tempdir", str(tmpdir))
 
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
         user = UserFactory.create()
         EmailFactory.create(user=user)
         project = ProjectFactory.create()
@@ -1416,9 +1422,20 @@ class TestFileUpload:
             with open(file_path, "rb") as fp:
                 assert fp.read() == expected
 
+        @pretend.call_recorder
+        def simple_storage_service_store(path, file_path, *, meta):
+            template = jinja.get_template("templates/legacy/api/simple/detail.html")
+            expected_content = template.render(
+                **_simple_detail(project, db_request), request=db_request
+            ).encode("utf-8")
+            with open(file_path, "rb") as fp:
+                assert fp.read() == expected_content
+
         storage_service = pretend.stub(store=storage_service_store)
+        simple_storage_service = pretend.stub(store=simple_storage_service_store)
         db_request.find_service = pretend.call_recorder(
             lambda svc, name=None, context=None: {
+                ISimpleStorage: simple_storage_service,
                 IFileStorage: storage_service,
                 IMetricsService: metrics,
             }.get(svc)
@@ -1431,6 +1448,7 @@ class TestFileUpload:
             delay=pretend.call_recorder(lambda *a, **kw: None)
         )
         db_request.task = pretend.call_recorder(lambda *a, **kw: update_bigquery)
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
 
         resp = legacy.file_upload(db_request)
 
@@ -1438,6 +1456,7 @@ class TestFileUpload:
         assert db_request.find_service.calls == [
             pretend.call(IMetricsService, context=None),
             pretend.call(IFileStorage),
+            pretend.call(ISimpleStorage),
         ]
         assert len(storage_service.store.calls) == 2 if has_signature else 1
         assert storage_service.store.calls[0] == pretend.call(
@@ -1518,11 +1537,21 @@ class TestFileUpload:
 
     @pytest.mark.parametrize("content_type", [None, "image/foobar"])
     def test_upload_fails_invlaid_content_type(
-        self, tmpdir, monkeypatch, pyramid_config, db_request, content_type
+        self,
+        tmpdir,
+        monkeypatch,
+        pyramid_config,
+        db_request,
+        content_type,
+        jinja,
     ):
         monkeypatch.setattr(tempfile, "tempdir", str(tmpdir))
 
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
+
         user = UserFactory.create()
         EmailFactory.create(user=user)
         db_request.user = user
@@ -2101,9 +2130,12 @@ class TestFileUpload:
         )
 
     def test_upload_succeeds_custom_project_size_limit(
-        self, pyramid_config, db_request, metrics
+        self, pyramid_config, db_request, metrics, jinja
     ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         db_request.user = user
@@ -2139,9 +2171,12 @@ class TestFileUpload:
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
         db_request.user_agent = "warehouse-tests/6.6.6"
+
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
 
         resp = legacy.file_upload(db_request)
 
@@ -2644,11 +2679,21 @@ class TestFileUpload:
         ],
     )
     def test_upload_succeeds_with_wheel(
-        self, tmpdir, monkeypatch, pyramid_config, db_request, plat, metrics
+        self,
+        tmpdir,
+        monkeypatch,
+        pyramid_config,
+        db_request,
+        plat,
+        metrics,
+        jinja,
     ):
         monkeypatch.setattr(tempfile, "tempdir", str(tmpdir))
 
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -2676,16 +2721,29 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         @pretend.call_recorder
         def storage_service_store(path, file_path, *, meta):
             with open(file_path, "rb") as fp:
                 assert fp.read() == _TAR_GZ_PKG_TESTDATA
 
+        @pretend.call_recorder
+        def simple_storage_service_store(path, file_path, *, meta):
+            template = jinja.get_template("templates/legacy/api/simple/detail.html")
+            expected_content = template.render(
+                **_simple_detail(project, db_request), request=db_request
+            ).encode("utf-8")
+            with open(file_path, "rb") as fp:
+                assert fp.read() == expected_content
+
         storage_service = pretend.stub(store=storage_service_store)
+        simple_storage_service = pretend.stub(store=simple_storage_service_store)
 
         db_request.find_service = pretend.call_recorder(
             lambda svc, name=None, context=None: {
                 IFileStorage: storage_service,
+                ISimpleStorage: simple_storage_service,
                 IMetricsService: metrics,
             }.get(svc)
         )
@@ -2698,6 +2756,7 @@ class TestFileUpload:
         assert db_request.find_service.calls == [
             pretend.call(IMetricsService, context=None),
             pretend.call(IFileStorage),
+            pretend.call(ISimpleStorage),
         ]
         assert storage_service.store.calls == [
             pretend.call(
@@ -2753,11 +2812,14 @@ class TestFileUpload:
         ]
 
     def test_upload_succeeds_with_wheel_after_sdist(
-        self, tmpdir, monkeypatch, pyramid_config, db_request, metrics
+        self, tmpdir, monkeypatch, pyramid_config, db_request, metrics, jinja
     ):
         monkeypatch.setattr(tempfile, "tempdir", str(tmpdir))
 
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -2790,15 +2852,28 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         @pretend.call_recorder
         def storage_service_store(path, file_path, *, meta):
             with open(file_path, "rb") as fp:
                 assert fp.read() == b"A fake file."
 
+        @pretend.call_recorder
+        def simple_storage_service_store(path, file_path, *, meta):
+            template = jinja.get_template("templates/legacy/api/simple/detail.html")
+            expected_content = template.render(
+                **_simple_detail(project, db_request), request=db_request
+            ).encode("utf-8")
+            with open(file_path, "rb") as fp:
+                assert fp.read() == expected_content
+
         storage_service = pretend.stub(store=storage_service_store)
+        simple_storage_service = pretend.stub(store=simple_storage_service_store)
         db_request.find_service = pretend.call_recorder(
             lambda svc, name=None, context=None: {
                 IFileStorage: storage_service,
+                ISimpleStorage: simple_storage_service,
                 IMetricsService: metrics,
             }.get(svc)
         )
@@ -2811,6 +2886,7 @@ class TestFileUpload:
         assert db_request.find_service.calls == [
             pretend.call(IMetricsService, context=None),
             pretend.call(IFileStorage),
+            pretend.call(ISimpleStorage),
         ]
         assert storage_service.store.calls == [
             pretend.call(
@@ -2913,9 +2989,12 @@ class TestFileUpload:
         )
 
     def test_upload_updates_existing_project_name(
-        self, pyramid_config, db_request, metrics
+        self, pyramid_config, db_request, metrics, jinja
     ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -2946,9 +3025,12 @@ class TestFileUpload:
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
         db_request.user_agent = "warehouse-tests/6.6.6"
+
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
 
         resp = legacy.file_upload(db_request)
 
@@ -2968,8 +3050,17 @@ class TestFileUpload:
 
         assert release.uploaded_via == "warehouse-tests/6.6.6"
 
-    def test_upload_succeeds_creates_release(self, pyramid_config, db_request, metrics):
+    def test_upload_succeeds_creates_release(
+        self,
+        pyramid_config,
+        db_request,
+        metrics,
+        jinja,
+    ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -3010,9 +3101,12 @@ class TestFileUpload:
             ]
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
 
@@ -3074,9 +3168,12 @@ class TestFileUpload:
         ]
 
     def test_upload_succeeds_creates_classifier(
-        self, pyramid_config, db_request, metrics, monkeypatch
+        self, pyramid_config, db_request, metrics, monkeypatch, jinja
     ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -3118,9 +3215,12 @@ class TestFileUpload:
             ]
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
 
@@ -3155,13 +3255,22 @@ class TestFileUpload:
             db_request.db.add(Classifier(classifier=f"{parent_classifier} :: Foo"))
             db_request.db.commit()
 
-    def test_equivalent_version_one_release(self, pyramid_config, db_request, metrics):
+    def test_equivalent_version_one_release(
+        self,
+        pyramid_config,
+        db_request,
+        metrics,
+        jinja,
+    ):
         """
         Test that if a release with a version like '1.0' exists, that a future
         upload with an equivalent version like '1.0.0' will not make a second
         release
         """
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -3187,9 +3296,12 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
 
@@ -3203,12 +3315,21 @@ class TestFileUpload:
         # Asset that only one release has been created
         assert releases == [release]
 
-    def test_equivalent_canonical_versions(self, pyramid_config, db_request, metrics):
+    def test_equivalent_canonical_versions(
+        self,
+        pyramid_config,
+        db_request,
+        metrics,
+        jinja,
+    ):
         """
         Test that if more than one release with equivalent canonical versions
         exists, we use the one that is an exact match
         """
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -3235,9 +3356,12 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
 
@@ -3246,8 +3370,17 @@ class TestFileUpload:
         assert len(release_a.files.all()) == 0
         assert len(release_b.files.all()) == 1
 
-    def test_upload_succeeds_creates_project(self, pyramid_config, db_request, metrics):
+    def test_upload_succeeds_creates_project(
+        self,
+        pyramid_config,
+        db_request,
+        metrics,
+        jinja,
+    ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -3270,9 +3403,12 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
         db_request.user_agent = "warehouse-tests/6.6.6"
@@ -3351,9 +3487,18 @@ class TestFileUpload:
         ],
     )
     def test_upload_requires_verified_email(
-        self, pyramid_config, db_request, emails_verified, expected_success, metrics
+        self,
+        pyramid_config,
+        db_request,
+        emails_verified,
+        expected_success,
+        metrics,
+        jinja,
     ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         for i, verified in enumerate(emails_verified):
@@ -3377,9 +3522,12 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
         db_request.user_agent = "warehouse-tests/6.6.6"
@@ -3407,9 +3555,12 @@ class TestFileUpload:
             )
 
     def test_upload_purges_legacy(
-        self, pyramid_config, db_request, monkeypatch, metrics
+        self, pyramid_config, db_request, monkeypatch, metrics, jinja
     ):
         pyramid_config.testing_securitypolicy(userid=1)
+        pyramid_config.registry.registerUtility(
+            jinja, IJinja2Environment, name=".jinja2"
+        )
 
         user = UserFactory.create()
         EmailFactory.create(user=user)
@@ -3432,9 +3583,12 @@ class TestFileUpload:
             }
         )
 
+        db_request.route_url = pretend.call_recorder(lambda *a, **kw: "/url")
+
         storage_service = pretend.stub(store=lambda path, filepath, meta: None)
         db_request.find_service = lambda svc, name=None, context=None: {
             IFileStorage: storage_service,
+            ISimpleStorage: storage_service,
             IMetricsService: metrics,
         }.get(svc)
         db_request.user_agent = "warehouse-tests/6.6.6"

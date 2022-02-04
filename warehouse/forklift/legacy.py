@@ -62,6 +62,7 @@ from warehouse.packaging.models import (
     Role,
 )
 from warehouse.packaging.tasks import update_bigquery_release_files
+from warehouse.packaging.utils import render_simple_detail
 from warehouse.utils import http, readme
 
 ONE_MB = 1 * 1024 * 1024
@@ -1458,6 +1459,9 @@ def file_upload(request):
                     "python-version": file_.python_version,
                 },
             )
+
+    # PEP 458: Render the simple index for uploaded project packages
+    render_simple_detail(project, request, store=True)
 
     # We are flushing the database requests so that we
     # can access the server default values when initiating celery
