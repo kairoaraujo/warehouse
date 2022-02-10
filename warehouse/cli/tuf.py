@@ -10,16 +10,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
-
 import click
-
-from tuf import repository_tool
+import datetime
 
 from warehouse.cli import warehouse
 from warehouse.config import Environment
 from warehouse.tuf import utils
-from warehouse.tuf.constants import BIN_N_COUNT, TOPLEVEL_ROLES, Role
+from warehouse.tuf.metadata_repo.repository import (
+    MetadataRepository,
+    TOP_LEVEL_ROLE_NAMES
+)
+from warehouse.tuf.constants import BIN_N_COUNT
+from tuf.api.metadata import Role
 
 
 def _make_backsigned_fileinfo_from_file(file):
@@ -38,16 +40,16 @@ def _repository_service(config):
     return repo_service_class.create_service(None, config)
 
 
-def _set_expiration_for_role(config, role_obj, role_name):
+def _set_expiration_for_role(config, role_name):
     # If we're initializing TUF for development purposes, give
     # every role a long expiration time so that developers don't have to
     # continually re-initialize it.
     if config.registry.settings["warehouse.env"] == Environment.development:
-        role_obj.expiration = datetime.datetime.now() + datetime.timedelta(
+        return datetime.datetime.now().replace(microsecond=0) + datetime.timedelta(
             seconds=config.registry.settings["tuf.development_metadata_expiry"]
         )
     else:
-        role_obj.expiration = datetime.datetime.now() + datetime.timedelta(
+        return datetime.datetime.now().replace(microsecond=0) + datetime.timedelta(
             seconds=config.registry.settings[f"tuf.{role_name}.expiry"]
         )
 
@@ -67,9 +69,8 @@ def keypair(config, name_, path_):
     """
     Generate a new TUF keypair, for development purposes.
     """
-
-    repository_tool.generate_and_write_ed25519_keypair(
-        path_, password=config.registry.settings[f"tuf.{name_}.secret"]
+    utils.create_dev_keys(
+        config.registry.settings[f"tuf.{name_}.secret"], path_
     )
 
 
@@ -79,36 +80,49 @@ def new_repo(config):
     """
     Initialize the TUF repository from scratch, including a brand new root.
     """
-
-    repository = repository_tool.create_new_repository(
-        config.registry.settings["tuf.repo.path"]
-    )
-
+    
     key_service = _key_service(config)
-    for role in TOPLEVEL_ROLES:
-        role_obj = getattr(repository, role)
-        role_obj.threshold = config.registry.settings[f"tuf.{role}.threshold"]
-        _set_expiration_for_role(config, role_obj, role)
+    storage_service = _repository_service(config)
+    md_repository = MetadataRepository(storage_service)
 
-        pubkeys = key_service.pubkeys_for_role(role)
-        privkeys = key_service.privkeys_for_role(role)
-        if len(pubkeys) < role_obj.threshold or len(privkeys) < role_obj.threshold:
-            raise click.ClickException(
-                f"Unable to initialize TUF repo ({role} needs {role_obj.threshold} keys"
-            )
+    if md_repository._is_initialized:
+        raise click.ClickException(
+            "TUF Metadata Repository already initialized."
+        )
+    
+    init_roles_payload = dict()
+    for role in TOP_LEVEL_ROLE_NAMES:
+        init_roles_payload[role] = {
+            "keys": [key_service.get(role, "public")],
+            "expiration": _set_expiration_for_role(config, role),
+            "threshold": config.registry.settings[f"tuf.{role}.threshold"]
+        }
 
-        for pubkey in pubkeys:
-            role_obj.add_verification_key(pubkey)
+    try:
+        metadata_repo_files = md_repository.initialize(init_roles_payload)
+    except (ValueError, FileExistsError) as err:
+        raise click.ClickException(str(err))
 
-        for privkey in privkeys:
-            role_obj.load_signing_key(privkey)
+    for repo_file in metadata_repo_files:
+        md_repository.store(repo_file.filename, repo_file.data)
+    
+    if md_repository.is_initialized is False:
+         raise click.ClickException(
+            "TUF Metadata Repository failed to initialized."
+        )
 
-    repository.mark_dirty(TOPLEVEL_ROLES)
-    repository.writeall(
-        consistent_snapshot=True,
-    )
+    sign_roles_payload = dict()
+    for role in TOP_LEVEL_ROLE_NAMES:
+        sign_roles_payload[role] = {
+            "keys": [key_service.get(role, "private")]
+        }
 
-
+    try:
+        md_repository.sign(sign_roles_payload)
+    except ValueError as err:
+        raise click.ClickException(str(err))
+    
+    
 @tuf.command()
 @click.pass_obj
 def build_targets(config):
@@ -117,6 +131,8 @@ def build_targets(config):
     targets role (bins) and its hashed bin delegations (each bin-n).
     """
 
+
+    """
     repo_service = _repository_service(config)
     repository = repo_service.load_repository()
 
@@ -174,3 +190,4 @@ def build_targets(config):
         consistent_snapshot=True,
         use_existing_fileinfo=True,
     )
+    """

@@ -11,19 +11,149 @@
 # limitations under the License.
 
 import os
+import datetime
 
 from contextlib import contextmanager
 from io import BytesIO
+from tuf.api.metadata import (
+    TOP_LEVEL_ROLE_NAMES,
+    DelegatedRole,
+    Delegations,
+    Key,
+    Metadata,
+    MetaFile,
+    Role,
+    Root,
+    Snapshot,
+    TargetFile,
+    Targets,
+    Timestamp,
+)
+from typing import Dict, Any
 
 import tuf.formats
 import tuf.repository_lib
 
 from google.cloud.exceptions import GoogleCloudError, NotFound
 from securesystemslib.exceptions import StorageError
+from securesystemslib.interface import generate_and_write_ed25519_keypair
+from securesystemslib.signer import SSlibSigner
 from securesystemslib.storage import FilesystemBackend, StorageBackendInterface
 from tuf.api import metadata
+from tuf.api.serialization.json import JSONSerializer
 
-from warehouse.tuf.constants import BIN_N_COUNT
+
+from warehouse.tuf.constants import BIN_N_COUNT, SPEC_VERSION
+from warehouse.config import Environment
+
+
+def _key_service(config):
+    key_service_class = config.maybe_dotted(config.registry.settings["tuf.key_backend"])
+    return key_service_class.create_service(None, config)
+
+
+def _repository_service(config):
+    repo_service_class = config.maybe_dotted(
+        config.registry.settings["tuf.repo_backend"]
+    )
+    return repo_service_class.create_service(None, config)
+
+
+def _set_expiration_for_role(config, role_name):
+    # If we're initializing TUF for development purposes, give
+    # every role a long expiration time so that developers don't have to
+    # continually re-initialize it.
+    if config.registry.settings["warehouse.env"] == Environment.development:
+        return datetime.datetime.now() + datetime.timedelta(
+            seconds=config.registry.settings["tuf.development_metadata_expiry"]
+        )
+    else:
+        return datetime.datetime.now() + datetime.timedelta(
+            seconds=config.registry.settings[f"tuf.{role_name}.expiry"]
+        )
+
+
+def init_repository(config):
+    """
+    Initialize the TUF repository from scratch, including a brand new root.
+    """
+    PRETTY = JSONSerializer(compact=False)
+
+    repository_service = _repository_service(config)
+    key_service = _key_service(config)
+
+    roles: Dict[str, Metadata] = dict()
+    keys: Dict[str, Key] = dict()
+
+    for role in TOP_LEVEL_ROLE_NAMES:
+        keys[role] = key_service.pubkeys_for_role(role)
+
+    roles[Targets.type] = Metadata[Targets](
+        signed=Targets(
+            version=1,
+            spec_version=SPEC_VERSION,
+            expires=_set_expiration_for_role(config, Targets.type),
+            targets={}
+        ),
+        signatures={},
+    )
+    roles[Snapshot.type] = Metadata[Snapshot](
+        Snapshot(
+            version=1,
+            spec_version=SPEC_VERSION,
+            expires=_set_expiration_for_role(config, Snapshot.type),
+            meta={"targets.json": MetaFile(version=1)},
+        ),
+        {},
+    )    
+    roles[Timestamp.type] = Metadata[Timestamp](
+        Timestamp(
+            version=1,
+            spec_version=SPEC_VERSION,
+            expires=_set_expiration_for_role(config, Timestamp.type),
+            snapshot_meta=MetaFile(version=1),
+        ),
+        {},
+    )
+    roles[Root.type] = Metadata[Root](
+        signed=Root(
+            version=1,
+            spec_version=SPEC_VERSION,
+            expires=_set_expiration_for_role(config, Root.type),
+            keys={
+                key["keyid"]: Key.from_securesystemslib_key(key)
+                for key in keys.values()
+            },
+            roles={
+                role: Role(
+                    [key["keyid"]],
+                    threshold=config.registry.settings[f"tuf.{role}.threshold"]
+                )
+                for role, key in keys.items()
+            },
+            consistent_snapshot=True,
+        ),
+        signatures={},
+    )
+
+    for role in TOP_LEVEL_ROLE_NAMES:
+        key = key_service.privkeys_for_role(role)
+        signer = SSlibSigner(key)
+        roles[role].sign(signer)
+
+    for role in TOP_LEVEL_ROLE_NAMES:
+        filename = f"{roles[role].signed.version}.{roles[role].signed.type}.json"
+        path = os.path.join(repository_service._repo_path, filename)
+        roles[role].to_file(path, serializer=PRETTY)
+
+    roles[Timestamp.type].to_file(
+        os.path.join(repository_service._repo_path, "timestamp.json"),
+        serializer=PRETTY
+    )
+
+
+def create_dev_keys(password: str, filepath: str) -> None:
+    generate_and_write_ed25519_keypair(password, filepath=filepath)
 
 
 def make_fileinfo(file, custom=None):

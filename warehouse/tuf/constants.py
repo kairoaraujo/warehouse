@@ -11,7 +11,7 @@
 # limitations under the License.
 
 import enum
-
+from tuf.api.metadata import SPECIFICATION_VERSION
 
 @enum.unique
 class Role(enum.Enum):
@@ -23,15 +23,10 @@ class Role(enum.Enum):
     BIN_N: str = "bin-n"
 
 
-TOPLEVEL_ROLES = [
-    Role.ROOT.value,
-    Role.SNAPSHOT.value,
-    Role.TARGETS.value,
-    Role.TIMESTAMP.value,
-]
-
 HASH_ALGORITHM = "blake2b"
 
 TUF_REPO_LOCK = "tuf-repo"
 
 BIN_N_COUNT = 16384
+
+SPEC_VERSION = ".".join(SPECIFICATION_VERSION)

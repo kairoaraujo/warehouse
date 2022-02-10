@@ -11,10 +11,19 @@
 # limitations under the License.
 
 
+from contextlib import contextmanager
 import os.path
 import warnings
+import glob
+import shutil
 
+from securesystemslib.exceptions import StorageError
+from securesystemslib.interface import (
+    import_ed25519_publickey_from_file,
+    import_ed25519_privatekey_from_file,
+)
 from tuf import repository_tool
+from tuf.api.metadata import Key
 from zope.interface import implementer
 
 from warehouse.tuf.interfaces import IKeyService, IRepositoryService, IStorageService
@@ -42,18 +51,33 @@ class LocalKeyService:
     def create_service(cls, context, request):
         return cls(request.registry.settings["tuf.key.path"], request)
 
+    def get(self, rolename, key_type):
+        if key_type == "private":
+            privkey_path = os.path.join(self._key_path, f"{rolename}")
+            key_sslib = import_ed25519_privatekey_from_file(
+                privkey_path,
+                self._request.registry.settings[f"tuf.{rolename}.secret"]
+            )
+        elif key_type == "public":
+            pubkey_path = os.path.join(self._key_path, f"{rolename}.pub")
+            key_sslib = import_ed25519_publickey_from_file(pubkey_path)
+        else:
+            raise ValueError(f"invalid key_type '{key_type}'")
+
+        return key_sslib
+
     def pubkeys_for_role(self, rolename):
-        pubkey_path = os.path.join(self._key_path, f"tuf.{rolename}.pub")
-        return [repository_tool.import_ed25519_publickey_from_file(pubkey_path)]
+        pubkey_path = os.path.join(self._key_path, f"{rolename}.pub")
+        pubkey_sslib = import_ed25519_publickey_from_file(pubkey_path)
+        return pubkey_sslib
 
     def privkeys_for_role(self, rolename):
-        privkey_path = os.path.join(self._key_path, f"tuf.{rolename}")
-        return [
-            repository_tool.import_ed25519_privatekey_from_file(
-                privkey_path,
-                password=self._request.registry.settings[f"tuf.{rolename}.secret"],
-            )
-        ]
+        privkey_path = os.path.join(self._key_path, f"{rolename}")
+        privkey_sslib = import_ed25519_privatekey_from_file(
+            privkey_path,
+            self._request.registry.settings[f"tuf.{rolename}.secret"]
+        )
+        return privkey_sslib
 
 
 @implementer(IStorageService)
@@ -84,9 +108,11 @@ class GCSStorageService:
 
 @implementer(IRepositoryService)
 class LocalRepositoryService:
+
     def __init__(self, repo_path, executor):
         self._repo_path = repo_path
         self._executor = executor
+
 
     @classmethod
     def create_service(cls, context, request):
@@ -94,6 +120,50 @@ class LocalRepositoryService:
             request.registry.settings["tuf.repo.path"],
             request.task(add_target).delay,
         )
+
+    @contextmanager
+    def get(self, role, version=None):
+
+        if role == "timestamp":
+            filename = os.path.join(self._repo_path, f"{role}.json")
+        else:
+            if version is None:
+                # Find largest version number in filenames
+                filenames = glob.glob(f"*.{role}.json")
+                versions = [int(name.split(".", 1)[0]) for name in filenames]
+                try:
+                    version = max(versions)
+                except ValueError:
+                    # No files found
+                    version = 1
+
+            filename = os.path.join(self._repo_path, f"{version}.{role}.json")
+
+        file_object = None
+        try:
+            file_object = open(filename, 'rb')
+            yield file_object
+        except OSError:
+            raise StorageError(f"Can't open {filename}")        
+        finally:
+            if file_object is not None:
+                file_object.close()
+
+    def put(self, file_object, filename):
+        file_path = os.path.join(self._repo_path, filename)
+        if not file_object.closed:
+            file_object.seek(0)
+
+        try:
+            with open(file_path, 'wb') as destination_file:
+                shutil.copyfileobj(file_object, destination_file)
+                destination_file.flush()
+                os.fsync(destination_file.fileno())
+        except OSError:
+            raise StorageError(f"Can't write file {filename}")
+
+    def store(self, file_object, filename):
+        self.put(file_object, filename)
 
     def load_repository(self):
         return repository_tool.load_repository(self._repo_path)

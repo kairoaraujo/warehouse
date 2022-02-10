@@ -150,14 +150,14 @@ initdb:
 	docker-compose run web python -m warehouse sponsors populate-db
 
 inittuf:
-	$(WAREHOUSE_CLI) tuf keypair --name root --path /opt/warehouse/src/dev/tuf.root
-	$(WAREHOUSE_CLI) tuf keypair --name snapshot --path /opt/warehouse/src/dev/tuf.snapshot
-	$(WAREHOUSE_CLI) tuf keypair --name targets --path /opt/warehouse/src/dev/tuf.targets
-	$(WAREHOUSE_CLI) tuf keypair --name timestamp --path /opt/warehouse/src/dev/tuf.timestamp
-	$(WAREHOUSE_CLI) tuf keypair --name bins --path /opt/warehouse/src/dev/tuf.bins
-	$(WAREHOUSE_CLI) tuf keypair --name bin-n --path /opt/warehouse/src/dev/tuf.bin-n
+	$(WAREHOUSE_CLI) tuf keypair --name root --path /opt/warehouse/src/dev/tufkeys/root
+	$(WAREHOUSE_CLI) tuf keypair --name snapshot --path /opt/warehouse/src/dev/tufkeys/snapshot
+	$(WAREHOUSE_CLI) tuf keypair --name targets --path /opt/warehouse/src/dev/tufkeys/targets
+	$(WAREHOUSE_CLI) tuf keypair --name timestamp --path /opt/warehouse/src/dev/tufkeys/timestamp
+	$(WAREHOUSE_CLI) tuf keypair --name bins --path /opt/warehouse/src/dev/tufkeys/bins
+	$(WAREHOUSE_CLI) tuf keypair --name bin-n --path /opt/warehouse/src/dev/tufkeys/bin-n
 	$(WAREHOUSE_CLI) tuf new-repo
-	$(WAREHOUSE_CLI) tuf build-targets
+	# $(WAREHOUSE_CLI) tuf build-targets
 
 reindex:
 	docker-compose run --rm web python -m warehouse search reindex

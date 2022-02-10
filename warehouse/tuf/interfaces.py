@@ -19,6 +19,8 @@ class IKeyService(Interface):
         Create the service, given the context and request for which it is being
         created.
         """
+    def get(rolename):
+        """Return a key from specific rolename"""
 
     def pubkeys_for_role(rolename):
         """
@@ -42,7 +44,6 @@ class IStorageService(Interface):
         """
         Return an implementation of `securesystemslib.storage.StorageBackendInterface`.
         """
-
 
 class IRepositoryService(Interface):
     def create_service(context, request):
