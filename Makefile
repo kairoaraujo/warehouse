@@ -167,6 +167,7 @@ shell:
 
 clean:
 	rm -rf dev/*.sql
+	rm -rf dev/tufkeys
 
 purge: stop clean
 	rm -rf .state

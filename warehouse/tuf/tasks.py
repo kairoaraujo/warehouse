@@ -283,7 +283,9 @@ def add_target(task, request, filepath, fileinfo):
             snapshot.signed,
             timedelta(seconds=request.registry.settings["tuf.snapshot.expiry"]),
         )
-        snapshot.signed.update(f"{delegated_bin_name}.json", delegated_bin.signed.version)
+        snapshot.signed.update(
+            f"{delegated_bin_name}.json", delegated_bin.signed.version
+        )
 
         # 9. Signing the updated snapshot metadata.
         for key in key_service.privkeys_for_role(Role.SNAPSHOT.value):

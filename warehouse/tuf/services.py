@@ -11,16 +11,17 @@
 # limitations under the License.
 
 
-from contextlib import contextmanager
-import os.path
-import warnings
 import glob
+import os.path
 import shutil
+import warnings
+
+from contextlib import contextmanager
 
 from securesystemslib.exceptions import StorageError
 from securesystemslib.interface import (
-    import_ed25519_publickey_from_file,
     import_ed25519_privatekey_from_file,
+    import_ed25519_publickey_from_file,
 )
 from tuf import repository_tool
 from tuf.api.metadata import Key
@@ -55,8 +56,7 @@ class LocalKeyService:
         if key_type == "private":
             privkey_path = os.path.join(self._key_path, f"{rolename}")
             key_sslib = import_ed25519_privatekey_from_file(
-                privkey_path,
-                self._request.registry.settings[f"tuf.{rolename}.secret"]
+                privkey_path, self._request.registry.settings[f"tuf.{rolename}.secret"]
             )
         elif key_type == "public":
             pubkey_path = os.path.join(self._key_path, f"{rolename}.pub")
@@ -74,8 +74,7 @@ class LocalKeyService:
     def privkeys_for_role(self, rolename):
         privkey_path = os.path.join(self._key_path, f"{rolename}")
         privkey_sslib = import_ed25519_privatekey_from_file(
-            privkey_path,
-            self._request.registry.settings[f"tuf.{rolename}.secret"]
+            privkey_path, self._request.registry.settings[f"tuf.{rolename}.secret"]
         )
         return privkey_sslib
 
@@ -108,11 +107,9 @@ class GCSStorageService:
 
 @implementer(IRepositoryService)
 class LocalRepositoryService:
-
     def __init__(self, repo_path, executor):
         self._repo_path = repo_path
         self._executor = executor
-
 
     @classmethod
     def create_service(cls, context, request):
@@ -141,10 +138,10 @@ class LocalRepositoryService:
 
         file_object = None
         try:
-            file_object = open(filename, 'rb')
+            file_object = open(filename, "rb")
             yield file_object
         except OSError:
-            raise StorageError(f"Can't open {filename}")        
+            raise StorageError(f"Can't open {filename}")
         finally:
             if file_object is not None:
                 file_object.close()
@@ -155,7 +152,7 @@ class LocalRepositoryService:
             file_object.seek(0)
 
         try:
-            with open(file_path, 'wb') as destination_file:
+            with open(file_path, "wb") as destination_file:
                 shutil.copyfileobj(file_object, destination_file)
                 destination_file.flush()
                 os.fsync(destination_file.fileno())

@@ -11,7 +11,9 @@
 # limitations under the License.
 
 import enum
+
 from tuf.api.metadata import SPECIFICATION_VERSION
+
 
 @enum.unique
 class Role(enum.Enum):

@@ -10,11 +10,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import datetime
+import os
 
 from contextlib import contextmanager
 from io import BytesIO
+from typing import Any, Dict
+
+import tuf.formats
+import tuf.repository_lib
+
+from google.cloud.exceptions import GoogleCloudError, NotFound
+from securesystemslib.exceptions import StorageError
+from securesystemslib.interface import generate_and_write_ed25519_keypair
+from securesystemslib.signer import SSlibSigner
+from securesystemslib.storage import FilesystemBackend, StorageBackendInterface
+from tuf.api import metadata
 from tuf.api.metadata import (
     TOP_LEVEL_ROLE_NAMES,
     DelegatedRole,
@@ -29,22 +40,10 @@ from tuf.api.metadata import (
     Targets,
     Timestamp,
 )
-from typing import Dict, Any
-
-import tuf.formats
-import tuf.repository_lib
-
-from google.cloud.exceptions import GoogleCloudError, NotFound
-from securesystemslib.exceptions import StorageError
-from securesystemslib.interface import generate_and_write_ed25519_keypair
-from securesystemslib.signer import SSlibSigner
-from securesystemslib.storage import FilesystemBackend, StorageBackendInterface
-from tuf.api import metadata
 from tuf.api.serialization.json import JSONSerializer
 
-
-from warehouse.tuf.constants import BIN_N_COUNT, SPEC_VERSION
 from warehouse.config import Environment
+from warehouse.tuf.constants import BIN_N_COUNT, SPEC_VERSION
 
 
 def _key_service(config):
@@ -93,7 +92,7 @@ def init_repository(config):
             version=1,
             spec_version=SPEC_VERSION,
             expires=_set_expiration_for_role(config, Targets.type),
-            targets={}
+            targets={},
         ),
         signatures={},
     )
@@ -105,7 +104,7 @@ def init_repository(config):
             meta={"targets.json": MetaFile(version=1)},
         ),
         {},
-    )    
+    )
     roles[Timestamp.type] = Metadata[Timestamp](
         Timestamp(
             version=1,
@@ -127,7 +126,7 @@ def init_repository(config):
             roles={
                 role: Role(
                     [key["keyid"]],
-                    threshold=config.registry.settings[f"tuf.{role}.threshold"]
+                    threshold=config.registry.settings[f"tuf.{role}.threshold"],
                 )
                 for role, key in keys.items()
             },
@@ -147,8 +146,7 @@ def init_repository(config):
         roles[role].to_file(path, serializer=PRETTY)
 
     roles[Timestamp.type].to_file(
-        os.path.join(repository_service._repo_path, "timestamp.json"),
-        serializer=PRETTY
+        os.path.join(repository_service._repo_path, "timestamp.json"), serializer=PRETTY
     )
 
 
@@ -302,3 +300,5 @@ class GCSBackend(StorageBackendInterface):
             self._bucket, prefix=filepath, fields="items(name),nextPageToken"
         )
         return [blob.name for blob in blobs]
+
+
