@@ -29,6 +29,7 @@ from warehouse.email import send_egg_uploads_deprecated_initial_email
 from warehouse.metrics import IMetricsService
 from warehouse.packaging.interfaces import IFileStorage
 from warehouse.packaging.models import Description, File, Project, Release, Role
+from warehouse.packaging.utils import render_simple_detail
 from warehouse.utils import readme
 
 logger = logging.getLogger(__name__)
@@ -555,3 +556,9 @@ def send_pep_715_notices(request):
                 contributor,
                 project_name=project.name,
             )
+
+
+@tasks.task(ignore_result=True, acks_late=True)
+def generate_projects_simple_detail(request, projects):
+    for project in projects:
+        render_simple_detail(project, request, store=True)
